@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Regional Routing Demo</title>
+<style>
+:root{font-family:Inter,system-ui,sans-serif;color:#182b2a;background:#eef3ed;line-height:1.5;--green:#175749;--ink:#182b2a;--sub:#536661;--border:#d3dfd6}
+*{box-sizing:border-box}body{margin:0}button,select{font:inherit}button{cursor:pointer}button:disabled{cursor:default;opacity:.5}button:focus-visible,select:focus-visible{outline:3px solid #438c72;outline-offset:3px}[hidden]{display:none!important}
+header,footer{padding:20px clamp(22px,6vw,88px);display:flex;justify-content:space-between;gap:16px;align-items:center}header{border-bottom:1px solid var(--border)}header strong{letter-spacing:.02em}header span,footer,small{color:var(--sub);font-size:.84rem}
+main{display:grid;grid-template-columns:1fr minmax(0,440px);align-items:start;gap:clamp(28px,7vw,108px);max-width:1160px;margin:auto;padding:clamp(32px,8vw,104px) 24px 48px}
+h1,h2,p{margin:0}h1{font-size:clamp(2.8rem,6vw,5.1rem);line-height:1;letter-spacing:-.065em;margin:12px 0 20px}h2{font-size:1.65rem;letter-spacing:-.04em;line-height:1.15}.intro>p{max-width:470px;color:var(--sub);font-size:1.1rem}
+.trace{border-top:1px solid var(--border);margin-top:32px;padding-top:18px}.trace dl{display:grid;grid-template-columns:110px 1fr;gap:9px;margin-bottom:0}.trace dt{color:var(--sub)}.trace dd{margin:0;font-family:ui-monospace,monospace;font-size:.9rem;overflow-wrap:anywhere}
+.panel{background:#fff;border:1px solid var(--border);border-radius:22px;padding:clamp(18px,4vw,28px);box-shadow:0 22px 45px #173b2911}.panel p{color:var(--sub);margin:10px 0 18px}.panel label{display:block;font-weight:650;margin:18px 0 6px}
+select{width:100%;padding:11px;background:#f5f8f4;border:1px solid #bccbc1;border-radius:9px;color:var(--ink)}.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:16px}.primary,.secondary{padding:10px 14px;border-radius:9px;border:1px solid var(--green);font-weight:650}.primary{background:var(--green);color:#fff}.secondary{background:white;color:var(--green)}
+.assets{list-style:none;padding:0;margin:10px 0}.assets li{border-top:1px solid var(--border);padding:10px 0}.notice{font-size:.88rem;min-height:24px;margin-top:12px!important;margin-bottom:0!important}
+footer{border-top:1px solid var(--border);flex-wrap:wrap}@media(max-width:740px){main{grid-template-columns:1fr;padding-top:32px}.panel{grid-row:2}.trace{margin-top:20px}h1{max-width:650px}}
+</style>
+</head>
+<body>
+<header><strong>Regional Routing</strong><span>Interactive proof of concept</span></header>
+<main>
+  <section class="intro" aria-labelledby="title">
+    <small>Enterprise mobile workflow</small>
+    <h1 id="title">One app.<br>Multiple regions.</h1>
+    <p>Choose a region before signing in. Then switch regions in Settings and see the app load a different workspace while the demo session stays active.</p>
+    <section class="trace" aria-labelledby="traceTitle">
+      <strong id="traceTitle">Routing trace</strong>
+      <dl><dt>Selected region</dt><dd id="traceRegion"></dd><dt>Mock route</dt><dd id="traceRoute"></dd><dt>Session</dt><dd id="traceSession"></dd></dl>
+    </section>
+  </section>
+  <section class="panel" aria-label="Interactive mobile workflow">
+    <div id="login">
+      <h2>Choose your region</h2>
+      <p>Continue with a fictional operator account.</p>
+      <label for="region">Region</label>
+      <select id="region"><option value="" selected disabled>Select a region</option><option value="north">North Region</option><option value="south">South Region</option></select>
+      <div class="actions"><button type="button" class="primary" id="signIn" disabled>Sign in as demo operator</button></div>
+    </div>
+    <div id="workspace" hidden>
+      <h2 id="workspaceTitle" tabindex="-1"></h2>
+      <p id="accountLabel"></p>
+      <strong>Sample assets</strong>
+      <ul class="assets" id="assets"></ul>
+      <div class="actions"><button type="button" class="primary" id="openSettings" aria-expanded="false" aria-controls="settings">Settings</button><button type="button" class="secondary" id="signOut">Sign out</button></div>
+      <form id="settings" hidden>
+        <label for="nextRegion">Change region</label>
+        <select id="nextRegion"><option value="north">North Region</option><option value="south">South Region</option></select>
+        <div class="actions"><button class="primary" type="submit" id="applyRegion">Apply region</button><button class="secondary" type="button" id="cancel">Cancel</button></div>
+      </form>
+    </div>
+    <p class="notice" id="notice" role="status"></p>
+  </section>
+</main>
+<footer><span>Portfolio demonstration by Nageen Fatima</span><span>Fictional data. Sign-in and routing run entirely in the browser.</span></footer>
+<script>
+const regions = {
+  north: { name: 'North Region', workspace: 'North Water Operations', route: '/mock/north/assets', assets: ['Intake Pump N-101', 'Reservoir Meter N-204'] },
+  south: { name: 'South Region', workspace: 'South Water Operations', route: '/mock/south/assets', assets: ['Booster Pump S-302', 'Flow Meter S-415'] }
+};
+const byId = (id) => document.getElementById(id);
+const initialRegion = byId('region');
+const nextRegion = byId('nextRegion');
+const settings = byId('settings');
+let activeRegion = '';
+
+function updateTrace(region) {
+  const route = regions[region];
+  byId('traceRegion').textContent = route?.name ?? 'Awaiting selection';
+  byId('traceRoute').textContent = route?.route ?? 'Pending';
+  byId('traceSession').textContent = activeRegion ? 'Active · Demo Operator' : 'Signed out';
+}
+function showWorkspace() {
+  const region = regions[activeRegion];
+  byId('workspaceTitle').textContent = region.workspace;
+  byId('accountLabel').textContent = 'Demo Operator · ' + region.name;
+  byId('assets').replaceChildren(...region.assets.map((name) => {
+    const item = document.createElement('li');
+    item.textContent = name;
+    return item;
+  }));
+  updateTrace(activeRegion);
+}
+function toggleSettings(open) {
+  settings.hidden = !open;
+  byId('openSettings').setAttribute('aria-expanded', String(open));
+  if (open) {
+    nextRegion.value = activeRegion;
+    byId('applyRegion').disabled = true;
+    nextRegion.focus();
+  }
+}
+initialRegion.addEventListener('change', () => {
+  byId('signIn').disabled = !initialRegion.value;
+  updateTrace(initialRegion.value);
+});
+byId('signIn').addEventListener('click', () => {
+  activeRegion = initialRegion.value;
+  byId('login').hidden = true;
+  byId('workspace').hidden = false;
+  showWorkspace();
+  byId('notice').textContent = 'Signed in to the demo workspace.';
+  byId('workspaceTitle').focus();
+});
+byId('openSettings').addEventListener('click', () => toggleSettings(settings.hidden));
+nextRegion.addEventListener('change', () => {
+  byId('applyRegion').disabled = nextRegion.value === activeRegion;
+});
+settings.addEventListener('submit', (event) => {
+  event.preventDefault();
+  activeRegion = nextRegion.value;
+  showWorkspace();
+  toggleSettings(false);
+  byId('notice').textContent = 'Switched to ' + regions[activeRegion].name + '. Your demo session is still active.';
+  byId('workspaceTitle').focus();
+});
+byId('cancel').addEventListener('click', () => {
+  toggleSettings(false);
+  byId('openSettings').focus();
+});
+byId('signOut').addEventListener('click', () => {
+  activeRegion = '';
+  initialRegion.value = '';
+  byId('signIn').disabled = true;
+  toggleSettings(false);
+  byId('workspace').hidden = true;
+  byId('login').hidden = false;
+  byId('notice').textContent = 'Signed out of the demo.';
+  updateTrace('');
+  initialRegion.focus();
+});
+updateTrace('');
+</script>
+</body>
+</html>
